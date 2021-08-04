@@ -1,13 +1,27 @@
 'use strict';
 import { window, ExtensionContext, StatusBarAlignment, StatusBarItem, workspace, WorkspaceConfiguration } from 'vscode';
-import { Units, DiskSpaceFormat, DiskSpaceFormatMappings, FreqMappings, MemMappings } from './constants';
+import { Units, DiskSpaceFormat, DiskSpaceFormatMappings, FreqMappings, MemMappings, NetMappings, ProgressMappings } from './constants';
 
 var si = require('systeminformation');
 
 export function activate(context: ExtensionContext) {
-    var resourceMonitor: ResMon = new ResMon();
+    var resourceMonitor: ResMonGraphical = new ResMonGraphical();
     resourceMonitor.StartUpdating();
     context.subscriptions.push(resourceMonitor);
+}
+
+class ResourceDisplayItem {
+
+    public text: string;
+    public tooltip: string;
+    public color: string | null;
+
+    constructor(text: string, tooltip: string, color: string | null) {
+
+        this.text = text;
+        this.tooltip = tooltip;
+        this.color = color;
+    }
 }
 
 abstract class Resource {
@@ -16,6 +30,7 @@ abstract class Resource {
     protected _configKey: string;
     protected _maxWidth: number;
 
+
     constructor(config: WorkspaceConfiguration, isShownByDefault: boolean, configKey: string) {
         this._config = config;
         this._isShownByDefault = isShownByDefault;
@@ -23,27 +38,96 @@ abstract class Resource {
         this._maxWidth = 0;
     }
 
-    public async getResourceDisplay(): Promise<string | null> {
-        if (await this.isShown())
-        {
-            let display: string = await this.getDisplay();
-            this._maxWidth = Math.max(this._maxWidth, display.length);
+    public setConfig(config: WorkspaceConfiguration) {
+        this._config = config;
+    }
 
-            // Pad out to the correct length such that the length doesn't change
-            return display.padEnd(this._maxWidth, ' ');
+    public async getResourceDisplay(): Promise<ResourceDisplayItem | null> {
+        if (await this.isShown()) {
+            return await this.getDisplay();
         }
 
         return null;
     }
 
-    protected async abstract getDisplay(): Promise<string>;
+    protected getColor(): string | null {
+        const defaultColor = null;
 
-    protected async isShown(): Promise<boolean> {
-        return Promise.resolve(this._config.get(`show.${this._configKey}`, false));
+        // Enforce #RRGGBB format
+        let hexColorCodeRegex = /^#[0-9A-F]{6}$/i;
+        let configColor = this._config.get(`${this._configKey}.color`, defaultColor);
+        if (configColor !== null && !hexColorCodeRegex.test(configColor)) {
+            configColor = defaultColor;
+        }
+
+        return configColor;
+    }
+
+    protected getProgressArray(): string[] {
+        let progressType = this._config.get(`${this._configKey}.style`, 'Vertical');
+        if (!(progressType in ProgressMappings)) {
+            console.error(`\`${progressType}\``, 'is not a valid type style. Setting to `Vertical`.')
+            progressType = 'Vertical';
+        }
+        return ProgressMappings[progressType];
+    }
+
+    /**
+     *
+     * @param progress  - a number between 0 and 100
+     */
+    protected getProgress(progress: number): string {
+        progress = Math.min(100.0, progress);
+        progress = Math.max(0, progress);
+        let progressArray = this.getProgressArray();
+        let index = Math.round((progress / 100.0) * (progressArray.length - 1));
+        let value = progressArray[index];
+        if (value === undefined) {
+            console.error('Hit an unknown error where value is',
+                progress,
+                'with index',
+                index,
+                'and progress array length of', progressArray.length);
+        }
+        return value;
+    }
+
+    protected getProgressWithRange(progress: number, min: number, max: number): string {
+        return this.getProgress((progress - min) / (max - min) * 100.0);
+    }
+
+    protected static getProgressColor(progress: number)
+    {
+        let progressArray = [
+            '#00FF00',
+            '#69B34C',
+            '#ACB334',
+            '#FAB733',
+            '#FF8E15',
+            '#FF4E11',
+            '#FF0D0D',
+            '#FF0000'
+        ];
+        let index = Math.round((progress / 100) * 8);
+        return progressArray[index];
+    }
+
+    protected async abstract getDisplay(): Promise<ResourceDisplayItem>;
+
+    public async getTooltip(): Promise<string | null> {
+        return null;
+    }
+
+    public async isShown(): Promise<boolean> {
+        return Promise.resolve(this._config.get(`${this._configKey}.show`, false));
     }
 
     public getPrecision(): number {
-        return this._config.get("show.precision", 2);
+        return Resource.getPrecision(this._config);
+    }
+
+    public static getPrecision(config: WorkspaceConfiguration): number {
+        return config.get("precision", 2);
     }
 
     protected convertBytesToLargestUnit(bytes: number, precision: number = 2): string {
@@ -61,11 +145,32 @@ class CpuUsage extends Resource {
         super(config, true, "cpuusage");
     }
 
-    async getDisplay(): Promise<string> {
+    async getDisplay(): Promise<ResourceDisplayItem> {
         let currentLoad = await si.currentLoad();
-        return `$(pulse) ${(100 - currentLoad.currentload_idle).toFixed(this.getPrecision())}%`;
-    }
+        let cpuCurrentSpeed = await si.cpuCurrentspeed();
+        let text = '$(pulse) ';
+        let tooltip = 'CPU:\n';
 
+        if (this._config.get("cpuusage.allcpus.show", true)) {
+            let cpus = currentLoad.cpus;
+
+            for (let i in cpus) {
+                let idle = cpus[i].load_idle;
+                let speedHz = CpuFreq.getFrequency(cpuCurrentSpeed.cores[i], this._config);
+                tooltip += `${i}: ${(100 - idle).toFixed(this.getPrecision())}%`;
+                tooltip += ` @ ${speedHz}\n`;
+                let progress = this.getProgress(100 - idle);
+                text += `${progress}`;
+            }
+        } else {
+            let progress = this.getProgress(100 - currentLoad.currentload_idle);
+            text += `${progress}`;
+            let speedHz = CpuFreq.getFrequency(cpuCurrentSpeed.avg, this._config);
+            tooltip += `${(100 - currentLoad.currentload_idle).toFixed(this.getPrecision())}% @ ${speedHz}`;
+        }
+
+        return new ResourceDisplayItem(text, tooltip, this.getColor());
+    }
 }
 
 class CpuTemp extends Resource {
@@ -74,16 +179,47 @@ class CpuTemp extends Resource {
         super(config, true, "cputemp");
     }
 
-    protected async isShown(): Promise<boolean> {
+    public async isShown(): Promise<boolean> {
         // If the CPU temp sensor cannot retrieve a valid temperature, disallow its reporting.
-        var cpuTemp = (await si.cpuTemperature()).main;
-        let hasCpuTemp = cpuTemp !== -1;
-        return Promise.resolve(hasCpuTemp && this._config.get("show.cputemp", true));
+        var cpuTemp = (await si.cpuTemperature()).cores;
+        var totalTemp = 0.0;
+        for (let t in cpuTemp) {
+            totalTemp += parseFloat(cpuTemp[t]);
+        }
+        let hasCpuTemp = cpuTemp.length && totalTemp > 0.0;
+        return Promise.resolve(hasCpuTemp && this._config.get("cputemp.show", true));
     }
 
-    async getDisplay(): Promise<string> {
-        let currentTemps = await si.cpuTemperature();
-        return `$(flame) ${(currentTemps.main).toFixed(this.getPrecision())} C`;
+    async getDisplay(): Promise<ResourceDisplayItem> {
+        let cpuTemp = (await si.cpuTemperature()).cores;
+        const MAX_TEMP = 100.0;
+        const MIN_TEMP = 30.0;
+        let text = '$(flame) ';
+        let tooltip = 'CPU Temperature:\n';
+        if (this._config.get("cputemp.allcpus.show", true)) {
+
+            for (let t in cpuTemp) {
+                let progress = this.getProgressWithRange(cpuTemp[t], MIN_TEMP, MAX_TEMP);
+                text += `${progress}`;
+                tooltip += `${t}: ${(cpuTemp[t]).toFixed(this.getPrecision())} C\n`;
+                if (progress === undefined) {
+                    console.log("temp", cpuTemp[t]);
+                }
+            }
+        } else {
+            var avgTemp = 0.0;
+            for (let t in cpuTemp) {
+                avgTemp += parseFloat(cpuTemp[t]);
+            }
+            let hasCpuTemp = cpuTemp.length && avgTemp > 0.0;
+            if (hasCpuTemp) {
+                avgTemp /= cpuTemp.length;
+            }
+            let progress = this.getProgressWithRange(avgTemp, MIN_TEMP, MAX_TEMP);
+            text += `${progress}`;
+            tooltip += `${(avgTemp).toFixed(this.getPrecision())} C`;
+        }
+        return new ResourceDisplayItem(text, tooltip, this.getColor());
     }
 }
 
@@ -92,18 +228,47 @@ class CpuFreq extends Resource {
         super(config, true, "cpufreq");
     }
 
-    async getDisplay(): Promise<string> {
+    async getDisplay(): Promise<ResourceDisplayItem> {
+        let currentLoad = await si.currentLoad();
         let cpuCurrentSpeed = await si.cpuCurrentspeed();
-        // systeminformation returns frequency in terms of GHz by default
-        let speedHz = parseFloat(cpuCurrentSpeed.avg) * Units.G;
-        let formattedWithUnits = this.getFormattedWithUnits(speedHz);
-        return `$(dashboard) ${(formattedWithUnits)}`;
+        let cpu = await si.cpu();
+        const CPU_MAX_SPEED: number = parseFloat(cpu.speedmax);
+        const CPU_MIN_SPEED: number = parseFloat(cpu.speedmin);
+        let text = '$(dashboard) ';
+        let tooltip = 'CPU Speed:\n';
+
+        if (this._config.get("cpufreq.allcpus.show", true)) {
+            let cpus = currentLoad.cpus;
+
+            for (let i in cpus) {
+                let speedHz = CpuFreq.getFrequency(cpuCurrentSpeed.cores[i], this._config);
+                tooltip += `${i}: ${speedHz}\n`;
+                let progress = this.getProgressWithRange(cpuCurrentSpeed.cores[i],
+                    CPU_MIN_SPEED, CPU_MAX_SPEED);
+                text += `${progress}`;
+            }
+        } else {
+            let progress = this.getProgressWithRange(cpuCurrentSpeed.avg,
+                CPU_MIN_SPEED, CPU_MAX_SPEED);
+            text += `${progress}`;
+            let speedHz = CpuFreq.getFrequency(cpuCurrentSpeed.avg, this._config);
+            tooltip += `${(100 - currentLoad.currentload_idle).toFixed(this.getPrecision())}% @ ${speedHz}`;
+        }
+
+        return new ResourceDisplayItem(text, tooltip, this.getColor());
     }
 
-    getFormattedWithUnits(speedHz: number): string {
-        var unit = this._config.get('freq.unit', "GHz");
+    static getFrequency(speed: string, config: WorkspaceConfiguration): string {
+        // systeminformation returns frequency in terms of GHz by default
+        let speedHz = parseFloat(speed) * Units.G;
+        let formattedWithUnits = CpuFreq.getFormattedWithUnits(speedHz, config);
+        return formattedWithUnits;
+    }
+
+    static getFormattedWithUnits(speedHz: number, config: WorkspaceConfiguration): string {
+        var unit = config.get('freq.unit', "GHz");
         var freqDivisor: number = FreqMappings[unit];
-        return `${(speedHz / freqDivisor).toFixed(this.getPrecision())} ${unit}`;
+        return `${(speedHz / freqDivisor).toFixed(Resource.getPrecision(config))} ${unit}`;
     }
 }
 
@@ -113,15 +278,18 @@ class Battery extends Resource {
         super(config, false, "battery");
     }
 
-    protected async isShown(): Promise<boolean> {
+    public async isShown(): Promise<boolean> {
         let hasBattery = (await si.battery()).hasbattery;
-        return Promise.resolve(hasBattery && this._config.get("show.battery", false));
+        return Promise.resolve(hasBattery && this._config.get("battery.show", false));
     }
 
-    async getDisplay(): Promise<string> {
+    async getDisplay(): Promise<ResourceDisplayItem> {
         let rawBattery = await si.battery();
-        var percentRemaining = Math.min(Math.max(rawBattery.percent, 0), 100);
-        return `$(plug) ${percentRemaining}%`;
+        let percentRemaining = Math.min(Math.max(rawBattery.percent, 0), 100);
+        let text = `$(plug) `;
+        let progress = this.getProgress(percentRemaining);
+        text += progress;
+        return new ResourceDisplayItem(text, `Battery: ${percentRemaining}%`, this.getColor());
     }
 }
 
@@ -130,25 +298,33 @@ class Memory extends Resource {
     constructor(config: WorkspaceConfiguration) {
         super(config, true, "mem");
     }
-    
-    async getDisplay() : Promise<string> {
+
+    async getDisplay() : Promise<ResourceDisplayItem> {
         let unit = this._config.get('memunit', "GB");
         var memDivisor = MemMappings[unit];
         let memoryData = await si.mem();
         let memoryUsedWithUnits = memoryData.active / memDivisor;
         let memoryTotalWithUnits = memoryData.total / memDivisor;
-        return `$(ellipsis) ${(memoryUsedWithUnits).toFixed(this.getPrecision())}/${(memoryTotalWithUnits).toFixed(this.getPrecision())} ${unit}`;
+        let text = `$(graph) `;
+        text += this.getProgressWithRange(memoryUsedWithUnits, 0, memoryTotalWithUnits);
+        let tooltip = `Memory:\n${(memoryUsedWithUnits).toFixed(this.getPrecision())}/${(memoryTotalWithUnits).toFixed(this.getPrecision())} ${unit}`;
+        return new ResourceDisplayItem(text, tooltip, this.getColor());
     }
 }
 
 class Network extends Resource {
-
+    private stats: { [id: string]: {[id: string]: number} };
+    private timeMs: number;
+    private prevDisplayItem: ResourceDisplayItem;
     constructor(config: WorkspaceConfiguration) {
         super(config, true, "net");
-    
+
         // Network stats are requested through returning the delta between
         // multiple invocations
         this.getInterfaceStats();
+        this.stats = {};
+        this.timeMs = 0;
+        this.prevDisplayItem = new ResourceDisplayItem('', '', '');
     }
 
     async getInterfaceStats() : Promise<any> {
@@ -160,16 +336,55 @@ class Network extends Resource {
         }
     }
 
-    async getDisplay(): Promise<string> {
-        // Not implemented
-        return ""; 
+    async getDisplay(): Promise<ResourceDisplayItem> {
+        let network = await si.networkStats();
+        const MAX_BYTES_PER_SECOND = 1000000000; // 1 Gigabit
+        let text = '';
+        let tooltip = 'Network:\n';
+        let currentTimeMs = +new Date();
+        let timeRange = (currentTimeMs - this.timeMs) / 1000.0;
+        if (timeRange === 0) {
+            return this.prevDisplayItem;
+        }
+        for (let iface of network) {
+            if (!(iface.iface in this.stats)) {
+                this.stats[iface.iface] = {
+                    'txBytes': 0,
+                    'rxBytes': 0
+                };
+            }
+            let rxBps = (iface.rx_bytes - this.stats[iface.iface].rxBytes) / timeRange;
+            let txBps = (iface.tx_bytes - this.stats[iface.iface].txBytes) / timeRange;
+
+            this.stats[iface.iface].rxBytes = iface.rx_bytes;
+            this.stats[iface.iface].txBytes = iface.tx_bytes;
+            console.log(Network.getFormattedWithUnits(rxBps, this._config))
+            let progressDown = this.getProgressWithRange(rxBps, 0,
+                MAX_BYTES_PER_SECOND);
+            let progressUp = this.getProgressWithRange(txBps, 0,
+                MAX_BYTES_PER_SECOND);
+            this.timeMs = currentTimeMs;
+            text += `$(arrow-down)${progressDown}`;
+            text += `$(arrow-up)${progressUp}`;
+            tooltip += `${iface.iface}: 🠓${Network.getFormattedWithUnits(rxBps, this._config)},`
+            tooltip += `🠕${Network.getFormattedWithUnits(txBps, this._config)}\n`
+        }
+        this.prevDisplayItem = new ResourceDisplayItem(text, tooltip, this.getColor());
+        return this.prevDisplayItem;
+    }
+
+    static getFormattedWithUnits(bytesPerSecond: number, config: WorkspaceConfiguration): string {
+        var bitsPerSecond = bytesPerSecond * 8;
+        var unit = config.get('net.unit', 'Kbps');
+        var divisor: number = NetMappings[unit];
+        return `${(bitsPerSecond / divisor).toFixed(Resource.getPrecision(config))} ${unit}`;
     }
 }
 
 class DiskSpace extends Resource {
 
     constructor(config: WorkspaceConfiguration) {
-        super(config, false, "disk");
+        super(config, true, "disk");
     }
 
     getFormat(): DiskSpaceFormat {
@@ -203,36 +418,47 @@ class DiskSpace extends Resource {
         }
     }
 
-    async getDisplay(): Promise<string> {
+    getProgressDiskSpace(fsSize: any) {
+        switch (this.getFormat()) {
+            case DiskSpaceFormat.PercentRemaining:
+                return this.getProgressWithRange(fsSize.size - fsSize.used, 0, fsSize.size);
+            case DiskSpaceFormat.PercentUsed:
+                return this.getProgressWithRange(fsSize.used, 0, fsSize.size);
+            case DiskSpaceFormat.Remaining:
+                return this.getProgressWithRange(fsSize.size - fsSize.used, 0, fsSize.size);
+            case DiskSpaceFormat.UsedOutOfTotal:
+                return this.getProgressWithRange(fsSize.used, 0, fsSize.size);
+        }
+    }
+
+    async getDisplay(): Promise<ResourceDisplayItem> {
         let fsSizes = await si.fsSize();
         let drives = this.getDrives();
-        var formatted = "$(database) ";
+        let text = "$(database) ";
         let formattedDrives: string[] = [];
         for (let fsSize of fsSizes) {
             // Drives were specified, check if this is an included drive
             if (drives.length === 0 || drives.indexOf(fsSize.fs) !== -1) {
                 formattedDrives.push(this.getFormattedDiskSpace(fsSize));
+                text += this.getProgressDiskSpace(fsSize);
             }
         }
-        return formatted + formattedDrives.join(", ");
+        let tooltip = "Drives:\n" + formattedDrives.join("\n");
+        return new ResourceDisplayItem(text, tooltip, this.getColor())
     }
 }
 
 
-class ResMon {
-    private _statusBarItem: StatusBarItem;
+class ResMonGraphical {
+    private _statusBarItems: StatusBarItem[];
     private _config: WorkspaceConfiguration;
-    private _delimiter: string;
     private _updating: boolean;
     private _resources: Resource[];
+    static _workspaceName: string = 'resmongraphical';
 
     constructor() {
-        this._config = workspace.getConfiguration('resmon');
-        this._delimiter = "    ";
+        this._config = workspace.getConfiguration(ResMonGraphical._workspaceName);
         this._updating = false;
-        this._statusBarItem = window.createStatusBarItem(this._config.get('alignLeft') ? StatusBarAlignment.Left : StatusBarAlignment.Right);
-        this._statusBarItem.color = this._getColor();
-        this._statusBarItem.show();
 
         // Add all resources to monitor
         this._resources = [];
@@ -243,6 +469,35 @@ class ResMon {
         this._resources.push(new DiskSpace(this._config));
         this._resources.push(new CpuTemp(this._config));
         this._resources.push(new Network(this._config));
+
+        // Each resource gets its own UI status bar item
+        this._statusBarItems = [];
+        this.createStatusBarItems();
+
+        workspace.onDidChangeConfiguration(e => {
+            if (!e.affectsConfiguration(ResMonGraphical._workspaceName)) {
+                return;
+            }
+            this._config = workspace.getConfiguration(ResMonGraphical._workspaceName);
+            this._resources.map(resource => {
+                resource.setConfig(this._config);
+            });
+            if (e.affectsConfiguration(ResMonGraphical._workspaceName + '.alignLeft')) {
+                this.createStatusBarItems();
+            }
+        });
+    }
+
+    private createStatusBarItems() {
+        for (let i in this._statusBarItems) {
+            this._statusBarItems[i].dispose();
+        }
+        this._statusBarItems = [];
+        this._resources.map(resource => {
+            let sbi = window.createStatusBarItem(this._config.get('alignLeft') ? StatusBarAlignment.Left : StatusBarAlignment.Right);
+            sbi.show();
+            this._statusBarItems.push(sbi);
+        });
     }
 
     public StartUpdating() {
@@ -253,53 +508,38 @@ class ResMon {
     public StopUpdating() {
         this._updating = false;
     }
-    
-    private _getColor() : string {
-        const defaultColor = "#FFFFFF";
-
-        // Enforce #RRGGBB format
-        let hexColorCodeRegex = /^#[0-9A-F]{6}$/i;
-        let configColor = this._config.get('color', defaultColor);
-        if (!hexColorCodeRegex.test(configColor)) {
-            configColor = defaultColor;
-        }
-
-        return configColor;
-    }
 
     private async update() {
         if (this._updating) {
-
-            // Update the configuration in case it has changed
-            this._config = workspace.getConfiguration('resmon');
-
-            // Update the status bar item's styling
-            let proposedAlignment = this._config.get('alignLeft') ? StatusBarAlignment.Left : StatusBarAlignment.Right;
-            if (proposedAlignment !== this._statusBarItem.alignment) {
-                this._statusBarItem.dispose();
-                this._statusBarItem = window.createStatusBarItem(proposedAlignment);
-                this._statusBarItem.color = this._getColor();
-                this._statusBarItem.show();
-            } else {
-                this._statusBarItem.color = this._getColor();
-            }
-
             // Get the display of the requested resources
-            let pendingUpdates: Promise<string | null>[] = this._resources.map(resource => resource.getResourceDisplay());
+            let pendingUpdates: Promise<ResourceDisplayItem | null>[] =
+                this._resources.map(resource => resource.getResourceDisplay());
 
             // Wait for the resources to update
-            this._statusBarItem.text = await Promise.all(pendingUpdates).then(finishedUpdates => {
-                // Remove nulls, join with delimiter
-                return finishedUpdates.filter(update => update !== null).join(this._delimiter);
-            });
+            for (let i in pendingUpdates) {
+                this._resources[i].getResourceDisplay().then(item => {
+                    if (item === null) {
+                        this._statusBarItems[i].hide();
+                        return;
+                    } else {
+                        this._statusBarItems[i].show();
+                    }
+                    this._statusBarItems[i].text = item.text;
+                    this._statusBarItems[i].color = item.color !== null ? item.color : '';
+                    // Currently there is bug that causes the tooltip to disappear
+                    // if the text changes. Tracking it here:
+                    // https://github.com/microsoft/vscode/issues/128887
+                    this._statusBarItems[i].tooltip = item.tooltip;
+                });
+            }
 
-            setTimeout(() => this.update(), this._config.get('updatefrequencyms', 2000));
+            setTimeout(() => this.update(), this._config.get('updatefrequencyms', 4000));
         }
     }
 
     dispose() {
         this.StopUpdating();
-        this._statusBarItem.dispose();
+        this._statusBarItems.map(statusBarItem => statusBarItem.dispose());
     }
 }
 

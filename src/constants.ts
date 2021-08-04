@@ -23,22 +23,45 @@ export interface UnitLookup {
 }
 
 export var DiskSpaceFormatMappings: DiskSpaceFormatLookup = {
-    "PercentUsed": DiskSpaceFormat.PercentUsed,
-    "PercentRemaining": DiskSpaceFormat.PercentRemaining,
-    "Remaining": DiskSpaceFormat.Remaining,
-    "UsedOutOfTotal": DiskSpaceFormat.UsedOutOfTotal,
+    'PercentUsed': DiskSpaceFormat.PercentUsed,
+    'PercentRemaining': DiskSpaceFormat.PercentRemaining,
+    'Remaining': DiskSpaceFormat.Remaining,
+    'UsedOutOfTotal': DiskSpaceFormat.UsedOutOfTotal,
 };
 
 export var FreqMappings: UnitLookup = {
-    "GHz": Units.G,
-    "MHz": Units.M,
-    "KHz": Units.K,
-    "Hz": Units.None,
+    'GHz': Units.G,
+    'MHz': Units.M,
+    'KHz': Units.K,
+    'Hz': Units.None,
 };
 
 export var MemMappings: UnitLookup = {
-    "GB": Units.G,
-    "MB": Units.M,
-    "KB": Units.K,
-    "B": Units.None,
+    'GB': Units.G,
+    'MB': Units.M,
+    'KB': Units.K,
+    'B': Units.None,
+};
+
+export var NetMappings: UnitLookup = {
+    'Gbps': Units.G,
+    'Mbps': Units.M,
+    'Kbps': Units.K,
+    'Bps': Units.None,
+};
+
+export var ProgressMappings: { [id: string]: string[] } = {
+    'Vertical': ['▁', '▂', '▃', '▅', '▆', '▇', '▉'],
+    'Horizontal': ['🭻', '🭺', '🭹', '🭸', '🭷', '🭶'],
+    'CirclePie': ['○', '◔', '◑', '◕', '●'],
+    'SquarePie': ['🬁', '🬉', '🬍', '🬎'],
+    'VerticalMeter': ['🭻', '🭺', '🭹', '🭸', '🭷', '🭶'],
+    'HorizontalMeter': ['🭰', '🭱', '🭲', '🭳', '🭴', '🭵'],
+    'Dots': ['⣀', '⣄', '⣤', '⣦', '⣶', '⣷', '⣿'],
+    'Geo': ['🭇', '🭈', '🭊', '🭆', '🭄', '🭅', '🭃', '🭂', '🭁', '🮐'],
+    'Shade': [' ', '░', '▒', '▓', '█'],
+    'SquareColor': ['🟩', '🟨', '🟧', '🟥'],
+    'CircleColor': ['🟢', '🟡', '🟠', '🔴'],
+    'InverseSquareColor': ['🟥', '🟧', '🟨', '🟩'],
+    'InverseCircleColor': ['🔴', '🟠', '🟡', '🟢']
 };

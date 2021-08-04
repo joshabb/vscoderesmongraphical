@@ -1,9 +1,9 @@
 {
-    "name": "resourcemonitor",
-    "displayName": "Resource Monitor",
-    "description": "Displays current CPU stats, memory/disk consumption, and battery percentage remaining.",
-    "version": "1.0.7",
-    "publisher": "mutantdino",
+    "name": "resmongraphical",
+    "displayName": "Resource Monitor Graphical",
+    "description": "Similar to resmon, but new and improved. Displays current CPU stats, memory/disk consumption, network, and battery percentage in a graphical way on the status bar.",
+    "version": "1.0.0",
+    "publisher": "joshabb",
     "engines": {
         "vscode": "^1.25.0"
     },
@@ -22,39 +22,220 @@
     "contributes": {
         "configuration": {
             "type": "object",
-            "title": "Resource Monitor",
+            "title": "Graphical Resource Monitor",
             "properties": {
-                "resmon.show.cpuusage": {
+                "resmongraphical.cpuusage.show": {
                     "type": "boolean",
                     "default": true,
                     "description": "Toggles the display of CPU Usage."
                 },
-                "resmon.show.cpufreq": {
+                "resmongraphical.cpuusage.allcpus.show": {
                     "type": "boolean",
                     "default": true,
+                    "description": "Toggles the display of CPU usage for all cores."
+                },
+                "resmongraphical.cpufreq.show": {
+                    "type": "boolean",
+                    "default": false,
                     "description": "Toggles the display of CPU frequency. For Windows, this displays the maximum clock speed."
                 },
-                "resmon.show.mem": {
+                "resmongraphical.cpufreq.allcpus.show": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Toggles the display of CPU frequency for all cores."
+                },
+                "resmongraphical.mem.show": {
                     "type": "boolean",
                     "default": true,
                     "description": "Toggles the display of memory consumption."
                 },
-                "resmon.show.battery": {
+                "resmongraphical.battery.show": {
                     "type": "boolean",
                     "default": true,
                     "description": "Toggles the display of battery percentage remaining if a device with a battery. If the device reports not having a battery, this setting will always be treated as false."
                 },
-                "resmon.show.disk": {
+                "resmongraphical.disk.show": {
                     "type": "boolean",
                     "default": false,
                     "description": "Toggles the display of disk space information."
                 },
-                "resmon.show.cputemp": {
+                "resmongraphical.cputemp.show": {
                     "type": "boolean",
                     "default": false,
-                    "description": "Toggles the display of CPU temperature. May not work without the lm-sensors module on Linux. May require running VS Code as admin on Windows"
+                    "description": "Toggles the display of CPU temperature. May not work without the lm-sensors module on Linux. May require running VS Code as admin on Windows."
                 },
-                "resmon.disk.format": {
+                "resmongraphical.cputemp.allcpus.show": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Toggles the display of CPU temperature for all cores."
+                },
+                "resmongraphical.net.show": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Toggles the display of network statistics."
+                },
+                "resmongraphical.cpuusage.color": {
+                    "type": "string",
+                    "default": null,
+                    "description": "Color of CPU usage."
+                },
+                "resmongraphical.cpufreq.color": {
+                    "type": "string",
+                    "default": null,
+                    "description": "Color of CPU frequency."
+                },
+                "resmongraphical.mem.color": {
+                    "type": "string",
+                    "default": null,
+                    "description": "Color of memory."
+                },
+                "resmongraphical.battery.color": {
+                    "type": "string",
+                    "default": null,
+                    "description": "Color of battery."
+                },
+                "resmongraphical.disk.color": {
+                    "type": "string",
+                    "default": null,
+                    "description": "Color of disk."
+                },
+                "resmongraphical.cputemp.color": {
+                    "type": "string",
+                    "default": null,
+                    "description": "Color of CPU temperature."
+                },
+                "resmongraphical.net.color": {
+                    "type": "string",
+                    "default": null,
+                    "description": "Color of network statistics."
+                },
+                "resmongraphical.cpuusage.style": {
+                    "type": "string",
+                    "enum": [
+                        "Vertical",
+                        "Horizontal",
+                        "CirclePie",
+                        "SquarePie",
+                        "VerticalMeter",
+                        "HorizontalMeter",
+                        "Dots",
+                        "Geo",
+                        "SquareColor",
+                        "CircleColor",
+                        "InverseSquareColor",
+                        "InverseCircleColor"
+                    ],
+                    "description": "Style of CPU usage."
+                },
+                "resmongraphical.cpufreq.style": {
+                    "type": "string",
+                    "enum": [
+                        "Vertical",
+                        "Horizontal",
+                        "CirclePie",
+                        "SquarePie",
+                        "VerticalMeter",
+                        "HorizontalMeter",
+                        "Dots",
+                        "Geo",
+                        "SquareColor",
+                        "CircleColor",
+                        "InverseSquareColor",
+                        "InverseCircleColor"
+                    ],
+                    "description": "Style of CPU frequency."
+                },
+                "resmongraphical.mem.style": {
+                    "type": "string",
+                    "enum": [
+                        "Vertical",
+                        "Horizontal",
+                        "CirclePie",
+                        "SquarePie",
+                        "VerticalMeter",
+                        "HorizontalMeter",
+                        "Dots",
+                        "Geo",
+                        "SquareColor",
+                        "CircleColor",
+                        "InverseSquareColor",
+                        "InverseCircleColor"
+                    ],
+                    "description": "Style of memory."
+                },
+                "resmongraphical.battery.style": {
+                    "type": "string",
+                    "enum": [
+                        "Vertical",
+                        "Horizontal",
+                        "CirclePie",
+                        "SquarePie",
+                        "VerticalMeter",
+                        "HorizontalMeter",
+                        "Dots",
+                        "Geo",
+                        "SquareColor",
+                        "CircleColor",
+                        "InverseSquareColor",
+                        "InverseCircleColor"
+                    ],
+                    "description": "Style of battery."
+                },
+                "resmongraphical.disk.style": {
+                    "type": "string",
+                    "enum": [
+                        "Vertical",
+                        "Horizontal",
+                        "CirclePie",
+                        "SquarePie",
+                        "VerticalMeter",
+                        "HorizontalMeter",
+                        "Dots",
+                        "Geo",
+                        "SquareColor",
+                        "CircleColor",
+                        "InverseSquareColor",
+                        "InverseCircleColor"
+                    ],
+                    "description": "Style of disk."
+                },
+                "resmongraphical.cputemp.style": {
+                    "type": "string",
+                    "enum": [
+                        "Vertical",
+                        "Horizontal",
+                        "CirclePie",
+                        "SquarePie",
+                        "VerticalMeter",
+                        "HorizontalMeter",
+                        "Dots",
+                        "Geo",
+                        "SquareColor",
+                        "CircleColor",
+                        "InverseSquareColor",
+                        "InverseCircleColor"
+                    ],
+                    "description": "Style of CPU temperature."
+                },
+                "resmongraphical.net.style": {
+                    "type": "string",
+                    "enum": [
+                        "Vertical",
+                        "Horizontal",
+                        "CirclePie",
+                        "SquarePie",
+                        "VerticalMeter",
+                        "HorizontalMeter",
+                        "Dots",
+                        "Geo",
+                        "SquareColor",
+                        "CircleColor",
+                        "InverseSquareColor",
+                        "InverseCircleColor"
+                    ],
+                    "description": "Style of network statistics."
+                },
+                "resmongraphical.disk.format": {
                     "type": "string",
                     "enum": [
                         "PercentRemaining",
@@ -64,7 +245,7 @@
                     ],
                     "description": "Configures how the disk space is displayed (percentage remaining/used, absolute remaining, used out of totel)."
                 },
-                "resmon.disk.drives": {
+                "resmongraphical.disk.drives": {
                     "type": "array",
                     "items": {
                         "type": "string"
@@ -73,13 +254,22 @@
                     "default": [],
                     "description": "Drives to show. For example, 'C:' on Windows, and '/dev/sda1' on Linux."
                 },
-                "resmon.updatefrequencyms": {
+                "resmongraphical.net.ifaces": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "uniqueItems": true,
+                    "default": [],
+                    "description": "Network interfaces to show. For example, 'eth0'."
+                },
+                "resmongraphical.updatefrequencyms": {
                     "type": "number",
-                    "default": 2000,
+                    "default": 4000,
                     "minimum": 200,
                     "description": "How long in ms between updates to resources."
                 },
-                "resmon.freq.unit": {
+                "resmongraphical.freq.unit": {
                     "type": "string",
                     "enum": [
                         "GHz",
@@ -89,7 +279,7 @@
                     ],
                     "default": "GHz"
                 },
-                "resmon.mem.unit": {
+                "resmongraphical.mem.unit": {
                     "type": "string",
                     "enum": [
                         "GB",
@@ -99,28 +289,33 @@
                     ],
                     "default": "GB"
                 },
-                "resmon.show.precision": {
+                "resmongraphical.net.unit": {
+                    "type": "string",
+                    "enum": [
+                        "Gbps",
+                        "Mbps",
+                        "Kbps",
+                        "Bps"
+                    ],
+                    "default": "Kbps"
+                },
+                "resmongraphical.precision": {
                     "type": "number",
                     "default": 2,
                     "minimum": 0,
-                    "maximum": 2,
-                    "description": "How long in ms between updates to resources."
+                    "maximum": 4,
+                    "description": "The precision of the statistical values."
                 },
-                "resmon.alignLeft": {
+                "resmongraphical.alignLeft": {
                     "type": "boolean",
                     "default": true,
                     "description": "Toggles the alignment of the status bar."
-                },
-                "resmon.color": {
-                    "type": "string",
-                    "default": "#FFFFFF",
-                    "description": "Color of the status bar text in hex code (for example, #FFFFFF is white). The color must be in the format #RRGGBB, using hex digits."
                 }
             }
         }
     },
     "repository": {
-        "url": "https://github.com/Njanderson/resmon.git"
+        "url": "https://github.com/joshabb/vscoderesmongraphical"
     },
     "scripts": {
         "vscode:prepublish": "npm run compile",
