@@ -52,7 +52,7 @@ export var NetMappings: UnitLookup = {
 
 export var ProgressMappings: { [id: string]: string[] } = {
     'Vertical': ['▁', '▂', '▃', '▅', '▆', '▇', '▉'],
-    'Horizontal': ['🭻', '🭺', '🭹', '🭸', '🭷', '🭶'],
+    'Horizontal': ['▏', '▎', '▍', '▋', '▊', '▉'],
     'CirclePie': ['○', '◔', '◑', '◕', '●'],
     'SquarePie': ['🬁', '🬉', '🬍', '🬎'],
     'VerticalMeter': ['🭻', '🭺', '🭹', '🭸', '🭷', '🭶'],

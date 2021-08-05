@@ -1,23 +1,33 @@
 'use strict';
-import { window, ExtensionContext, StatusBarAlignment, StatusBarItem, workspace, WorkspaceConfiguration } from 'vscode';
+import { window, ExtensionContext, StatusBarAlignment, StatusBarItem, workspace, WorkspaceConfiguration, commands } from 'vscode';
 import { Units, DiskSpaceFormat, DiskSpaceFormatMappings, FreqMappings, MemMappings, NetMappings, ProgressMappings } from './constants';
 
 var si = require('systeminformation');
 
 export function activate(context: ExtensionContext) {
     var resourceMonitor: ResMonGraphical = new ResMonGraphical();
+    for (let key of resourceMonitor.getConfigKeys()) {
+        const command = `resmongraphical.openSettings${key}`;
+
+        const commandHandler = (name: string) => {
+            commands.executeCommand('workbench.action.openSettings', `resmongraphical${key}`);
+        };
+
+        context.subscriptions.push(commands.registerCommand(command, commandHandler));
+    }
     resourceMonitor.StartUpdating();
     context.subscriptions.push(resourceMonitor);
+
 }
 
 class ResourceDisplayItem {
-
+    public key: string;
     public text: string;
     public tooltip: string;
     public color: string | null;
 
     constructor(text: string, tooltip: string, color: string | null) {
-
+        this.key = '';
         this.text = text;
         this.tooltip = tooltip;
         this.color = color;
@@ -42,9 +52,15 @@ abstract class Resource {
         this._config = config;
     }
 
+    public getConfigKey(): string {
+        return this._configKey;
+    }
+
     public async getResourceDisplay(): Promise<ResourceDisplayItem | null> {
         if (await this.isShown()) {
-            return await this.getDisplay();
+            let display = await this.getDisplay();
+            display.key = this._configKey;
+            return display;
         }
 
         return null;
@@ -181,43 +197,44 @@ class CpuTemp extends Resource {
 
     public async isShown(): Promise<boolean> {
         // If the CPU temp sensor cannot retrieve a valid temperature, disallow its reporting.
-        var cpuTemp = (await si.cpuTemperature()).cores;
-        var totalTemp = 0.0;
-        for (let t in cpuTemp) {
-            totalTemp += parseFloat(cpuTemp[t]);
+        let cpuTemp = await si.cpuTemperature();
+        let hasCpuTemp = false;
+        if (this._config.get("cputemp.allcpus.show", true)) {
+            let coreTemps = cpuTemp.cores;
+            if (coreTemps.length === 0) {
+                window.showErrorMessage('Cannot show all cores for CPU temperature because this information is not available. Turn off all cpus for CPU temperature.');
+                return Promise.resolve(false);
+            }
+            let totalTemp = 0.0;
+            for (let t of coreTemps) {
+                totalTemp += parseFloat(t);
+            }
+            hasCpuTemp = coreTemps.length && totalTemp > 0.0;
+        } else {
+            let temp = cpuTemp.main;
+            hasCpuTemp = temp > 0.0;
         }
-        let hasCpuTemp = cpuTemp.length && totalTemp > 0.0;
         return Promise.resolve(hasCpuTemp && this._config.get("cputemp.show", true));
     }
 
     async getDisplay(): Promise<ResourceDisplayItem> {
-        let cpuTemp = (await si.cpuTemperature()).cores;
+        let cpuTemp = await si.cpuTemperature();
         const MAX_TEMP = 100.0;
         const MIN_TEMP = 30.0;
         let text = '$(flame) ';
         let tooltip = 'CPU Temperature:\n';
         if (this._config.get("cputemp.allcpus.show", true)) {
-
-            for (let t in cpuTemp) {
-                let progress = this.getProgressWithRange(cpuTemp[t], MIN_TEMP, MAX_TEMP);
+            console.log(cpuTemp.cores);
+            for (let t in cpuTemp.cores) {
+                let progress = this.getProgressWithRange(cpuTemp.cores[t], MIN_TEMP, MAX_TEMP);
                 text += `${progress}`;
-                tooltip += `${t}: ${(cpuTemp[t]).toFixed(this.getPrecision())} C\n`;
-                if (progress === undefined) {
-                    console.log("temp", cpuTemp[t]);
-                }
+                tooltip += `${t}: ${(cpuTemp.cores[t]).toFixed(this.getPrecision())} C\n`;
             }
         } else {
-            var avgTemp = 0.0;
-            for (let t in cpuTemp) {
-                avgTemp += parseFloat(cpuTemp[t]);
-            }
-            let hasCpuTemp = cpuTemp.length && avgTemp > 0.0;
-            if (hasCpuTemp) {
-                avgTemp /= cpuTemp.length;
-            }
-            let progress = this.getProgressWithRange(avgTemp, MIN_TEMP, MAX_TEMP);
+            let temp = cpuTemp.main;
+            let progress = this.getProgressWithRange(temp, MIN_TEMP, MAX_TEMP);
             text += `${progress}`;
-            tooltip += `${(avgTemp).toFixed(this.getPrecision())} C`;
+            tooltip += `${(temp).toFixed(this.getPrecision())} C`;
         }
         return new ResourceDisplayItem(text, tooltip, this.getColor());
     }
@@ -266,7 +283,7 @@ class CpuFreq extends Resource {
     }
 
     static getFormattedWithUnits(speedHz: number, config: WorkspaceConfiguration): string {
-        var unit = config.get('freq.unit', "GHz");
+        var unit = config.get('cpufreq.unit', "GHz");
         var freqDivisor: number = FreqMappings[unit];
         return `${(speedHz / freqDivisor).toFixed(Resource.getPrecision(config))} ${unit}`;
     }
@@ -300,7 +317,7 @@ class Memory extends Resource {
     }
 
     async getDisplay() : Promise<ResourceDisplayItem> {
-        let unit = this._config.get('memunit', "GB");
+        let unit = this._config.get('mem.unit', "GB");
         var memDivisor = MemMappings[unit];
         let memoryData = await si.mem();
         let memoryUsedWithUnits = memoryData.active / memDivisor;
@@ -317,7 +334,7 @@ class Network extends Resource {
     private timeMs: number;
     private prevDisplayItem: ResourceDisplayItem;
     constructor(config: WorkspaceConfiguration) {
-        super(config, true, "net");
+        super(config, true, "network");
 
         // Network stats are requested through returning the delta between
         // multiple invocations
@@ -375,7 +392,7 @@ class Network extends Resource {
 
     static getFormattedWithUnits(bytesPerSecond: number, config: WorkspaceConfiguration): string {
         var bitsPerSecond = bytesPerSecond * 8;
-        var unit = config.get('net.unit', 'Kbps');
+        var unit = config.get('network.unit', 'Kbps');
         var divisor: number = NetMappings[unit];
         return `${(bitsPerSecond / divisor).toFixed(Resource.getPrecision(config))} ${unit}`;
     }
@@ -454,6 +471,7 @@ class ResMonGraphical {
     private _config: WorkspaceConfiguration;
     private _updating: boolean;
     private _resources: Resource[];
+    private _configKeys: string[];
     static _workspaceName: string = 'resmongraphical';
 
     constructor() {
@@ -469,6 +487,10 @@ class ResMonGraphical {
         this._resources.push(new DiskSpace(this._config));
         this._resources.push(new CpuTemp(this._config));
         this._resources.push(new Network(this._config));
+        this._configKeys = [];
+        for (let r of this._resources) {
+            this._configKeys.push(r.getConfigKey());
+        }
 
         // Each resource gets its own UI status bar item
         this._statusBarItems = [];
@@ -500,6 +522,10 @@ class ResMonGraphical {
         });
     }
 
+    public getConfigKeys(): string[] {
+        return this._configKeys;
+    }
+
     public StartUpdating() {
         this._updating = true;
         this.update();
@@ -524,6 +550,7 @@ class ResMonGraphical {
                     } else {
                         this._statusBarItems[i].show();
                     }
+                    this._statusBarItems[i].command = `resmongraphical.openSettings${item.key}`;
                     this._statusBarItems[i].text = item.text;
                     this._statusBarItems[i].color = item.color !== null ? item.color : '';
                     // Currently there is bug that causes the tooltip to disappear

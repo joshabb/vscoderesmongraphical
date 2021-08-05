@@ -1,4 +1,4 @@
-# Graphical Resource Monitor
+# Resource Monitor Graphical
 
 ## Features
 
@@ -6,10 +6,16 @@ Displays CPU frequency, usage, memory consumption, and battery percentage remain
 
 ## Screenshots
 
+![Screencast](images/screencast.gif)
+
 ![Example](images/example.png)
-![Example](images/tooltip_example.png)
-![Example](images/color_example.png)
-![Example](images/color_example2.png)
+- Example with all white resources.
+
+![Example2](images/tooltip_example.png)
+- Example showing tooltips.
+
+![Example3](images/color_example.png)
+- Example of coloring the resources.
 
 ## Requirements
 
@@ -27,7 +33,7 @@ The system information node module.
 - `resmongraphical.disk.show`: Toggles the display of disk space information.
 - `resmongraphical.cputemp.show`: Toggles the display of CPU temperature. May not work without the lm-sensors module on Linux. May require running VS Code as admin on Windows.
 - `resmongraphical.cputemp.show.allcpus`: Toggles the display of CPU temperature for all cores. Default is true.
-- `resmongraphical.net.show`: Show network statistics.
+- `resmongraphical.network.show`: Show network statistics.
 
 ### Color settings
 For each of the colors, if none is specified the default theme will be used. The format for each color must be hexidecimal #RRGGBB, where ##FF000 is red, #00FF00 is green, and #00000FF is blue.
@@ -38,7 +44,7 @@ For each of the colors, if none is specified the default theme will be used. The
 - `resmongraphical.battery.color`: Color for battery percentage.
 - `resmongraphical.disk.color`: Color for disk usage.
 - `resmongraphical.cputemp.color`: Color for CPU temperature.
-- `resmongraphical.net.color`: Color for network statistics.
+- `resmongraphical.network.color`: Color for network statistics.
 
 ### Style settings
 - For each of the settings.style the following can be applied:
@@ -61,7 +67,7 @@ For each of the colors, if none is specified the default theme will be used. The
 - `resmongraphical.battery.style`: Style for battery percentage.
 - `resmongraphical.disk.style`: Style for disk usage.
 - `resmongraphical.cputemp.style`: Style for CPU temperature.
-- `resmongraphical.net.style`: Style for network statistics.
+- `resmongraphical.network.style`: Style for network statistics.
 
 
 ### Other settings
@@ -71,9 +77,9 @@ For each of the colors, if none is specified the default theme will be used. The
   - `Remaining`
   - `UsedOutOfTotal`
 - `resmongraphical.disk.drives`: Drives to show. For example, 'C:' on Windows, and '/dev/sda1' on Linux.
-- `resmongraphical.net.ifaces`: Network interfaces to show. For example `eth0`.
+- `resmongraphical.network.ifaces`: Network interfaces to show. For example `eth0`.
 - `resmongraphical.updatefrequencyms`: How frequently to query systeminformation. The minimum is 4000 ms as to prevent accidentally updating so fast as to freeze up your machine.
-- `resmongraphical.freq.unit`: Unit used for the CPU frequency (GHz-Hz). Options are:
+- `resmongraphical.cpufreq.unit`: Unit used for the CPU frequency (GHz-Hz). Options are:
   - `GHz` - Gigahertz.
   - `MHz` - Megahertz.
   - `KHz` - Kilohertz.
@@ -83,7 +89,7 @@ For each of the colors, if none is specified the default theme will be used. The
   - `MB` - Megabytes.
   - `KB` - Kilobytes.
   - `B` - Bytes.
-- `resmongraphical.net.unit`: Unit used for the network statistics (Gbs-Kbs). Options are:
+- `resmongraphical.network.unit`: Unit used for the network statistics (Gbs-Kbs). Options are:
   - `Gbps` - Gigabits per second.
   - `Mbps` - Megabits per second.
   - `Kbps` - Kilobits per second.
@@ -99,7 +105,8 @@ Tooltips disappear if they change. This is a known vscode bug: https://github.co
 ---
 
 ## Change Log
-
+### [1.0.1]
+- Bug fix to the horizontal meter. Added open settings on click to each of the resources. Fixed issue with CPU temperature when multiple cores are not available.
 ### [1.0.0]
 - Forked resmon and added stats about individual cpu cores, added ability to change color and per.style resource, and added implementation for network stats.
 

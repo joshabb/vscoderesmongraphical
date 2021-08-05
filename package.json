@@ -2,7 +2,7 @@
     "name": "resmongraphical",
     "displayName": "Resource Monitor Graphical",
     "description": "Similar to resmon, but new and improved. Displays current CPU stats, memory/disk consumption, network, and battery percentage in a graphical way on the status bar.",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "publisher": "joshabb",
     "engines": {
         "vscode": "^1.25.0"
@@ -22,7 +22,7 @@
     "contributes": {
         "configuration": {
             "type": "object",
-            "title": "Graphical Resource Monitor",
+            "title": "Resource Monitor Graphical",
             "properties": {
                 "resmongraphical.cpuusage.show": {
                     "type": "boolean",
@@ -69,7 +69,7 @@
                     "default": false,
                     "description": "Toggles the display of CPU temperature for all cores."
                 },
-                "resmongraphical.net.show": {
+                "resmongraphical.network.show": {
                     "type": "boolean",
                     "default": false,
                     "description": "Toggles the display of network statistics."
@@ -104,7 +104,7 @@
                     "default": null,
                     "description": "Color of CPU temperature."
                 },
-                "resmongraphical.net.color": {
+                "resmongraphical.network.color": {
                     "type": "string",
                     "default": null,
                     "description": "Color of network statistics."
@@ -217,7 +217,7 @@
                     ],
                     "description": "Style of CPU temperature."
                 },
-                "resmongraphical.net.style": {
+                "resmongraphical.network.style": {
                     "type": "string",
                     "enum": [
                         "Vertical",
@@ -254,7 +254,7 @@
                     "default": [],
                     "description": "Drives to show. For example, 'C:' on Windows, and '/dev/sda1' on Linux."
                 },
-                "resmongraphical.net.ifaces": {
+                "resmongraphical.network.ifaces": {
                     "type": "array",
                     "items": {
                         "type": "string"
@@ -269,7 +269,7 @@
                     "minimum": 200,
                     "description": "How long in ms between updates to resources."
                 },
-                "resmongraphical.freq.unit": {
+                "resmongraphical.cpufreq.unit": {
                     "type": "string",
                     "enum": [
                         "GHz",
@@ -289,7 +289,7 @@
                     ],
                     "default": "GB"
                 },
-                "resmongraphical.net.unit": {
+                "resmongraphical.network.unit": {
                     "type": "string",
                     "enum": [
                         "Gbps",
